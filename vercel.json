@@ -2,14 +2,22 @@
   "version": 2,
   "builds": [
     {
-      "src": "package.json",
+      "src": "Backend/Server.js",
       "use": "@vercel/node"
+    },
+    {
+      "src": "package.json",
+      "use": "@vercel/static-build"
     }
   ],
+  "outputDirectory": "build",
   "routes": [
     {
       "src": "/api/(.*)",
       "dest": "/Backend/Server.js"
+    },
+    {
+      "handle": "filesystem"
     },
     {
       "src": "/(.*)",
