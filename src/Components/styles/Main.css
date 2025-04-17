@@ -1,0 +1,65 @@
+/* Card Hover Effects */
+.product-card {
+  transition: all 0.3s ease;
+  border: 1px solid #ddd;
+  overflow: hidden;
+}
+
+.product-card:hover {
+  transform: translateY(-10px);
+  box-shadow: 0 10px 20px rgba(0, 0, 0, 0.1);
+  border-color: #aaa;
+}
+
+.product-card img {
+  transition: all 0.5s ease;
+}
+
+.product-card:hover img {
+  transform: scale(1.05);
+}
+
+.product-card .btn {
+  transition: all 0.3s ease;
+}
+
+.product-card:hover .btn {
+  background-color: #0069d9;
+  border-color: #0062cc;
+}
+
+/* Feature Card Hover Effects */
+.feature-card {
+  transition: all 0.3s ease;
+  border: 1px solid #ddd;
+}
+
+.feature-card:hover {
+  background-color: #f8f9fa;
+  box-shadow: 0 5px 15px rgba(0, 0, 0, 0.1);
+  border-color: #aaa;
+}
+
+.feature-card i {
+  transition: all 0.3s ease;
+  color: #007bff;
+}
+
+.feature-card:hover i {
+  transform: scale(1.2);
+  color: #0056b3;
+}
+
+/* Testimonial Card Hover Effects */
+.testimonial-card {
+  transition: all 0.3s ease;
+  background-color: #f8f9fa;
+  border-radius: 10px;
+  border: 1px solid #eee;
+}
+
+.testimonial-card:hover {
+  background-color: #fff;
+  box-shadow: 0 8px 16px rgba(0, 0, 0, 0.1);
+  border-color: #ddd;
+} 

@@ -1,0 +1,131 @@
+/* Dashboard Container Styles */
+.dashboard-container {
+  background-image: url('../Images/bg-image.jpg'); /* Path to your background image */
+  background-size: cover;
+  background-position: center;
+  min-height: 100vh; /* Ensure it takes up full viewport height */
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  color: #fff; /* Text color for better visibility on the background */
+  text-align: center; /* Center align text */
+  padding: 20px;
+  font-family: 'Arial', sans-serif; /* Choose a font you like */
+}
+
+/* User Info Styles */
+.user-info {
+  background-color: rgba(0, 0, 0, 0.7); /* Semi-transparent background for contrast */
+  padding: 30px; /* Increase padding for more spacious feel */
+  border-radius: 15px; /* Softer rounded corners */
+  box-shadow: 0px 4px 10px rgba(0, 0, 0, 0.5);
+  text-align: left; /* Align text to the left for better readability */
+  max-width: 400px; /* Limit width for better mobile responsiveness */
+  margin-bottom: 40px; /* Larger margin to create more space below user info */
+}
+
+/* User Details Styles */
+.user-details {
+  margin-bottom: 20px; /* Increase spacing between elements */
+}
+
+/* User Name, Email, and Phone Styles */
+.user-name,
+.user-email,
+.user-phone {
+  color: hsl(0, 0%, 100%); /* Bright white color for text */
+  font-size: 1.2em; /* Larger font size for better readability */
+  margin-bottom: 10px; /* Increase spacing between name and email */
+}
+
+/* Logout Button Styles */
+.logout-button {
+  background-color: #f44336;
+  color: #fff;
+  border: none;
+  padding: 12px 25px;
+  border-radius: 5px;
+  cursor: pointer;
+  font-size: 1em; /* Match font size with text */
+  transition: background-color 0.3s ease; /* Add smooth transition for hover effect */
+  margin-bottom: 40px; /* Add significant space between logout button and edit form */
+  margin-top: 20px; /* Space between user info and logout button */
+}
+
+.logout-button:hover {
+  background-color: #e53935; /* Darker red on hover */
+}
+
+/* Edit Button Styles */
+.edit-button {
+  background-color: #dc3545; /* Red background for Edit Info button */
+  color: #fff;
+  border: none;
+  padding: 12px 25px;
+  border-radius: 5px;
+  cursor: pointer;
+  font-size: 1em; /* Match font size with text */
+  transition: background-color 0.3s ease; /* Add smooth transition for hover effect */
+  margin-right: 20px; /* Space between Edit Info and Logout button */
+}
+
+.edit-button:hover {
+  background-color: #c82333; /* Darker red on hover */
+}
+
+/* Edit Form Styles */
+.edit-form {
+  text-align: left; /* Align text to the left */
+  background-color: #6c757d; /* Semi-transparent red background for edit form */
+  padding: 30px; /* Increase padding for a more spacious feel */
+  border-radius: 15px; /* Rounded corners for edit form */
+  box-shadow: 0px 4px 10px rgba(0, 0, 0, 0.5);
+  margin-top: 40px; /* Increase the distance between logout button and edit form */
+}
+
+/* Edit Input Styles */
+.edit-input {
+  width: 100%;
+  padding: 10px;
+  margin-bottom: 15px;
+  border: 1px solid #fff;
+  border-radius: 5px;
+  background-color: rgba(0, 0, 0, 0.2); /* Slightly darker background for input fields */
+  color: #fff; /* White text color for input fields */
+}
+
+/* Save and Cancel Button Styles */
+.save-button,
+.cancel-button {
+  width: auto; /* Adjust width to fit content */
+  padding: 12px 25px;
+  margin-bottom: 10px; /* Add space below the buttons */
+  border-radius: 5px;
+  border: none;
+  cursor: pointer;
+  transition: background-color 0.3s ease; /* Smooth transition for hover effect */
+}
+
+.save-button {
+  background-color: hsl(219, 94%, 53%); /* Green background for save button */
+  color: #fff;
+}
+
+.save-button:hover {
+  background-color: #1c84d3; /* Darker on hover */
+}
+
+.cancel-button {
+  background-color: #dc3545; /* Red background for cancel button */
+  color: #fff;
+}
+
+.cancel-button:hover {
+  background-color: #c82333; /* Darker red on hover */
+}
+
+/* Add spacing between save and cancel buttons */
+.save-button,
+.cancel-button {
+  margin-right: 10px; /* Add space between the buttons */
+}

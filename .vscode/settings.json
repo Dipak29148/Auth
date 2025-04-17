@@ -1,0 +1,5 @@
+{
+    "files.autoSave": "onFocusChange",
+    "window.autoDetectColorScheme": true,
+    "workbench.preferredDarkColorTheme": "Default Light Modern"
+}
