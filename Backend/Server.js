@@ -63,7 +63,8 @@ app.post('/api/auth/register', async (req, res) => {
     const newUser = new User({ name, email, password: hashedPassword });
     await newUser.save();
 
-    const token = jwt.sign({ userId: newUser._id }, 'your_jwt_secret', { expiresIn: '1h' });
+    const jwtSecret = process.env.JWT_SECRET || 'your_jwt_secret';
+    const token = jwt.sign({ userId: newUser._id }, jwtSecret, { expiresIn: '1h' });
 
     res.status(201).json({
       success: true,
@@ -102,7 +103,8 @@ app.post('/api/auth/login', async (req, res) => {
     }
 
     // Create and send JWT
-    const token = jwt.sign({ userId: user._id }, 'your_jwt_secret', { expiresIn: '1h' });
+    const jwtSecret = process.env.JWT_SECRET || 'your_jwt_secret';
+    const token = jwt.sign({ userId: user._id }, jwtSecret, { expiresIn: '1h' });
     res.status(200).json({ token });
   } catch (error) {
     console.error('Login error:', error);
@@ -114,7 +116,8 @@ app.post('/api/auth/login', async (req, res) => {
 app.get('/api/auth/user', async (req, res) => {
   try {
     const token = req.headers.authorization.split(' ')[1];
-    const decoded = jwt.verify(token, 'your_jwt_secret');
+    const jwtSecret = process.env.JWT_SECRET || 'your_jwt_secret';
+    const decoded = jwt.verify(token, jwtSecret);
 
     const user = await User.findById(decoded.userId).select('-password');
     if (!user) {
@@ -132,7 +135,8 @@ app.get('/api/auth/user', async (req, res) => {
 app.put('/api/auth/user', async (req, res) => {
   try {
     const token = req.headers.authorization.split(' ')[1];
-    const decoded = jwt.verify(token, 'your_jwt_secret');
+    const jwtSecret = process.env.JWT_SECRET || 'your_jwt_secret';
+    const decoded = jwt.verify(token, jwtSecret);
 
     const { name, email } = req.body;
 
