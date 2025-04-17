@@ -27,7 +27,7 @@ const Contact = () => {
     e.preventDefault();
     setSubmitStatus({ submitting: true, success: false, error: null });
     
-    axios.post('http://localhost:5500/api/contact/send-message', formData)
+    axios.post('/api/contact/send-message', formData)
       .then((response) => {
         console.log('Response:', response);
         setFormData({

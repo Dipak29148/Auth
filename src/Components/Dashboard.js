@@ -26,7 +26,7 @@ const Dashboard = () => {
           return; // Don't redirect immediately if we're logging out
         }
 
-        const response = await axios.get('http://localhost:5500/api/auth/user', {
+        const response = await axios.get('/api/auth/user', {
           headers: {
             Authorization: `Bearer ${token}`,
           },
@@ -67,7 +67,7 @@ const Dashboard = () => {
   const handleSave = async () => {
     try {
       const token = localStorage.getItem('authToken');
-      const response = await axios.put('http://localhost:5500/api/auth/user', {
+      const response = await axios.put('/api/auth/user', {
         name: newName,
         email: newEmail,
       }, {

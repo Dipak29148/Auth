@@ -14,7 +14,7 @@ const Login = ({ onLogin }) => {
     setLoading(true);
 
     try {
-      const response = await axios.post('http://localhost:5500/api/auth/login', { email, password }, { withCredentials: true });
+      const response = await axios.post('/api/auth/login', { email, password }, { withCredentials: true });
       
       if (response.data.token) {
         // Store the token in local storage

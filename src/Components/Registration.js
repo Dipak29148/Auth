@@ -31,7 +31,7 @@ const Registration = () => {
   
     try {
       const response = await axios.post(
-        'http://localhost:5500/api/auth/register',
+        '/api/auth/register',
         trimmedData,
         {
           headers: {
