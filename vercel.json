@@ -15,6 +15,11 @@
   ],
   "routes": [
     {
+      "src": "/api/test",
+      "dest": "Backend/Server.js",
+      "methods": ["GET"]
+    },
+    {
       "src": "/api/health",
       "dest": "Backend/Server.js",
       "methods": ["GET"]

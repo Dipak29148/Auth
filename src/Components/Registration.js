@@ -62,14 +62,14 @@ const Registration = () => {
         errorMessage = 'Request timed out. The server is taking too long to respond.';
       } else if (error.response) {
         errorMessage = error.response.data?.message || 
-                       error.response.data?.error || 
-                       `Error: ${error.response.status} ${error.response.statusText}`;
+                      error.response.data?.error || 
+                      `Error: ${error.response.status} ${error.response.statusText}`;
       } else if (error.message) {
         errorMessage = error.message;
       }
       
       setError(errorMessage);
-      console.error('Registration error:', error.response?.data || error);
+      console.error('Registration error:', typeof error === 'object' ? JSON.stringify(error) : error);
     } finally {
       setLoading(false);
     }

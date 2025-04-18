@@ -32,13 +32,21 @@ if (process.env.NODE_ENV === 'production') {
   app.use(express.static(path.join(__dirname, '../build')));
 }
 
-// Connect to MongoDB
-mongoose.connect(process.env.MONGO_URI, {
-  useNewUrlParser: true,
-  useUnifiedTopology: true,
-})
-  .then(() => console.log('Connected to MongoDB'))
-  .catch(err => console.error('Failed to connect to MongoDB:', err));
+// Connect to MongoDB with better error handling
+const connectDB = async () => {
+  try {
+    console.log('Connecting to MongoDB...');
+    await mongoose.connect(process.env.MONGO_URI, {
+      useNewUrlParser: true,
+      useUnifiedTopology: true,
+    });
+    console.log('MongoDB Connected Successfully');
+    return true;
+  } catch (error) {
+    console.error('MongoDB Connection Error:', error);
+    return false;
+  }
+};
 
 // Registration Route
 app.post('/api/auth/register', async (req, res) => {
@@ -168,6 +176,16 @@ app.put('/api/auth/user', async (req, res) => {
 app.use('/api/auth', authRoutes);
 app.use('/api/contact', contactRoutes);
 
+// Test API endpoint
+app.get('/api/test', (req, res) => {
+  res.status(200).json({
+    message: 'API is working',
+    environment: process.env.NODE_ENV || 'development',
+    timestamp: new Date().toISOString(),
+    vercel: process.env.VERCEL || false
+  });
+});
+
 // Error handling middleware
 app.use((err, req, res, next) => {
   console.error(err.stack);
@@ -178,16 +196,25 @@ app.use((err, req, res, next) => {
   });
 });
 
-// Health check endpoint
-app.get('/api/health', (req, res) => {
-  res.status(200).json({ status: 'ok', message: 'Server is running' });
-});
-
-// Start the Server
-const PORT = process.env.PORT || 5500;
-app.listen(PORT, () => {
-  console.log(`Server running on http://localhost:${PORT}`);
-});
+// Initialize connection and start server
+(async () => {
+  const dbConnected = await connectDB();
+  
+  // Health check endpoint
+  app.get('/api/health', (req, res) => {
+    res.status(200).json({ 
+      status: 'ok', 
+      message: 'Server is running', 
+      dbConnected: dbConnected 
+    });
+  });
+  
+  // Start the Server
+  const PORT = process.env.PORT || 5500;
+  app.listen(PORT, () => {
+    console.log(`Server running on http://localhost:${PORT}`);
+  });
+})();
 
 // Serve frontend in production
 if (process.env.NODE_ENV === 'production') {
