@@ -15,8 +15,14 @@
   ],
   "routes": [
     {
+      "src": "/api/health",
+      "dest": "Backend/Server.js",
+      "methods": ["GET"]
+    },
+    {
       "src": "/api/(.*)",
-      "dest": "Backend/Server.js"
+      "dest": "Backend/Server.js",
+      "methods": ["GET", "POST", "PUT", "DELETE", "OPTIONS"]
     },
     {
       "handle": "filesystem"

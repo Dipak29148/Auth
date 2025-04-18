@@ -30,6 +30,7 @@ const Registration = () => {
     };
   
     try {
+      console.log('Submitting registration to API...');
       const response = await axios.post(
         '/api/auth/register',
         trimmedData,
@@ -37,6 +38,7 @@ const Registration = () => {
           headers: {
             'Content-Type': 'application/json',
           },
+          timeout: 15000, // 15 second timeout
         }
       );
   
@@ -46,15 +48,26 @@ const Registration = () => {
         localStorage.setItem('user', JSON.stringify(response.data.user));
         addToast('Registration successful!', 'success');
         setFormData({ name: '', email: '', password: '' });
+        // Redirect to login
+        setTimeout(() => {
+          window.location.href = '/login';
+        }, 1500);
       } else {
         setError(response.data.message || 'Registration failed');
       }
     } catch (error) {
-      const errorMessage =
-        error.response?.data?.message ||
-        error.response?.data?.error ||
-        error.message ||
-        'Registration failed';
+      let errorMessage = 'Registration failed. Please try again later.';
+      
+      if (error.code === 'ECONNABORTED') {
+        errorMessage = 'Request timed out. The server is taking too long to respond.';
+      } else if (error.response) {
+        errorMessage = error.response.data?.message || 
+                       error.response.data?.error || 
+                       `Error: ${error.response.status} ${error.response.statusText}`;
+      } else if (error.message) {
+        errorMessage = error.message;
+      }
+      
       setError(errorMessage);
       console.error('Registration error:', error.response?.data || error);
     } finally {
