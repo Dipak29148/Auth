@@ -11,6 +11,7 @@ import Footer from './Components/Footer';
 import ProductDetail1 from './Components/ProductDetail1';
 import ProductDetail2 from './Components/ProductDetail2';
 import ProductDetail3 from './Components/ProductDetail3';
+import NotFound from './Components/NotFound';
 import { ToastProvider } from './context/ToastContext';
 import './App.css';
 import './Components/styles/Toast.css';
@@ -34,7 +35,8 @@ const App = () => {
           <Route path="/product/1" element={<ProductDetail1 />} />
           <Route path="/product/2" element={<ProductDetail2 />} />
           <Route path="/product/3" element={<ProductDetail3 />} />
-        </Routes>
+          <Route path="*" element={<NotFound />} />
+       </Routes>
       </div>
       <Footer /> {/* Footer is placed here to ensure it's visible on all pages */}
     </Router>

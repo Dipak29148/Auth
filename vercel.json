@@ -30,28 +30,8 @@
       "methods": ["GET", "POST", "PUT", "DELETE", "OPTIONS"]
     },
     {
-      "src": "^/static/(.*)",
-      "dest": "/static/$1"
-    },
-    {
-      "src": "^/favicon.ico",
-      "dest": "/favicon.ico"
-    },
-    {
-      "src": "^/manifest.json",
-      "dest": "/manifest.json"
-    },
-    {
-      "src": "^/robots.txt",
-      "dest": "/robots.txt"
-    },
-    {
-      "src": "^/asset-manifest.json",
-      "dest": "/asset-manifest.json"
-    },
-    {
-      "src": "/(.*)",
-      "dest": "/index.html"
+      "src": "^(?!/api/).*",
+      "dest": "build/index.html"
     }
   ]
 } 
