@@ -57,19 +57,24 @@ const Registration = () => {
       }
     } catch (error) {
       let errorMessage = 'Registration failed. Please try again later.';
-      
+
       if (error.code === 'ECONNABORTED') {
         errorMessage = 'Request timed out. The server is taking too long to respond.';
       } else if (error.response) {
-        errorMessage = error.response.data?.message || 
-                      error.response.data?.error || 
-                      `Error: ${error.response.status} ${error.response.statusText}`;
+        // If response is not JSON, fallback to generic message
+        if (typeof error.response.data === 'object') {
+          errorMessage = error.response.data?.message ||
+                         error.response.data?.error ||
+                         `Error: ${error.response.status} ${error.response.statusText}`;
+        } else {
+          errorMessage = 'Unexpected server response.';
+        }
       } else if (error.message) {
         errorMessage = error.message;
       }
-      
+
       setError(errorMessage);
-      console.error('Registration error:', typeof error === 'object' ? JSON.stringify(error) : error);
+      console.error('Registration error:', error);
     } finally {
       setLoading(false);
     }

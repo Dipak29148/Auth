@@ -50,7 +50,7 @@ const connectDB = async () => {
 
 // Registration Route
 app.post('/api/auth/register', async (req, res) => {
-  // console.log('Registration request received:', req.body);
+  console.log('Registration request received:', req.body);
 
   try {
     // Trim input fields
