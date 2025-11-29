@@ -53,7 +53,9 @@ const Registration = () => {
           window.location.href = '/login';
         }, 1500);
       } else {
-        setError(response.data.message || 'Registration failed');
+        // Ensure message is always a string
+        const errorMsg = response.data?.message;
+        setError(typeof errorMsg === 'string' ? errorMsg : 'Registration failed');
       }
     } catch (error) {
       let errorMessage = 'Registration failed. Please try again later.';
@@ -61,19 +63,29 @@ const Registration = () => {
       if (error.code === 'ECONNABORTED') {
         errorMessage = 'Request timed out. The server is taking too long to respond.';
       } else if (error.response) {
-        // If response is not JSON, fallback to generic message
-        if (typeof error.response.data === 'object') {
-          errorMessage = error.response.data?.message ||
-                         error.response.data?.error ||
-                         `Error: ${error.response.status} ${error.response.statusText}`;
+        // Handle different response data types more defensively
+        const responseData = error.response.data;
+        
+        // Check if responseData exists and is an object (but not null)
+        if (responseData && typeof responseData === 'object' && responseData !== null) {
+          // Extract message or error property, ensuring it's a string
+          const msg = responseData.message || responseData.error;
+          if (typeof msg === 'string' && msg.length > 0) {
+            errorMessage = msg;
+          } else {
+            errorMessage = `Error: ${error.response.status} ${error.response.statusText || 'Unknown error'}`;
+          }
+        } else if (typeof responseData === 'string') {
+          errorMessage = responseData;
         } else {
-          errorMessage = 'Unexpected server response.';
+          errorMessage = `Error: ${error.response.status} ${error.response.statusText || 'Unexpected server response'}`;
         }
-      } else if (error.message) {
+      } else if (error.message && typeof error.message === 'string') {
         errorMessage = error.message;
       }
 
-      setError(errorMessage);
+      // Final safety check - ensure errorMessage is always a string
+      setError(String(errorMessage || 'Registration failed. Please try again later.'));
       console.error('Registration error:', error);
     } finally {
       setLoading(false);
@@ -134,7 +146,11 @@ const Registration = () => {
                       {loading ? 'Registering...' : 'Register'}
                     </button>
                   </div>
-                  {error && <div className="alert alert-danger mt-3">{error}</div>}
+                  {error && (
+                    <div className="alert alert-danger mt-3">
+                      {typeof error === 'string' ? error : String(error || 'An error occurred')}
+                    </div>
+                  )}
                 </form>
               </div>
               <div className="card-footer text-center">
