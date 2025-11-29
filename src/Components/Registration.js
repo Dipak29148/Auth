@@ -60,7 +60,11 @@ const Registration = () => {
     } catch (error) {
       let errorMessage = 'Registration failed. Please try again later.';
 
-      if (error.code === 'ECONNABORTED') {
+      // Handle 504 Gateway Timeout specifically
+      if (error.response?.status === 504 || error.code === 'ERR_BAD_RESPONSE') {
+        errorMessage = 'Server timeout. The request is taking too long. Please try again in a moment.';
+        addToast('Server timeout. Please try again.', 'error');
+      } else if (error.code === 'ECONNABORTED') {
         errorMessage = 'Request timed out. The server is taking too long to respond.';
       } else if (error.response) {
         // Handle different response data types more defensively

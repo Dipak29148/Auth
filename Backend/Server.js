@@ -4,7 +4,6 @@ const bodyParser = require('body-parser');
 const mongoose = require('mongoose');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
-const { Schema } = mongoose;
 const dotenv = require('dotenv');
 
 // Import routes
@@ -26,30 +25,56 @@ app.use(cors({
 }));
 app.use(bodyParser.json());
 
-// Serve static files in production
-if (process.env.NODE_ENV === 'production') {
-  const path = require('path');
-  app.use(express.static(path.join(__dirname, '../build')));
-}
+// MongoDB connection cache for serverless
+let cachedDb = null;
 
-// Connect to MongoDB with better error handling
 const connectDB = async () => {
+  // Return cached connection if available
+  if (cachedDb && mongoose.connection.readyState === 1) {
+    return cachedDb;
+  }
+
   try {
+    // If already connecting, wait for it
+    if (mongoose.connection.readyState === 2) {
+      await new Promise((resolve) => {
+        mongoose.connection.once('connected', resolve);
+      });
+      return mongoose.connection;
+    }
+
     console.log('Connecting to MongoDB...');
-    await mongoose.connect(process.env.MONGO_URI, {
+    const conn = await mongoose.connect(process.env.MONGO_URI, {
       useNewUrlParser: true,
       useUnifiedTopology: true,
+      serverSelectionTimeoutMS: 5000, // Timeout after 5s instead of 30s
+      socketTimeoutMS: 45000,
     });
+    cachedDb = conn;
     console.log('MongoDB Connected Successfully');
-    return true;
+    return conn;
   } catch (error) {
     console.error('MongoDB Connection Error:', error);
-    return false;
+    throw error;
   }
 };
 
-// Registration Route
-app.post('/api/auth/register', async (req, res) => {
+// Middleware to ensure DB connection before handling requests
+const ensureDB = async (req, res, next) => {
+  try {
+    await connectDB();
+    next();
+  } catch (error) {
+    console.error('Database connection failed:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Database connection failed. Please try again.',
+    });
+  }
+};
+
+// Registration Route - with DB connection check
+app.post('/api/auth/register', ensureDB, async (req, res) => {
   console.log('Registration request received:', req.body);
 
   try {
@@ -66,6 +91,7 @@ app.post('/api/auth/register', async (req, res) => {
       });
     }
 
+    // Check existing user
     const existingUser = await User.findOne({ email });
     if (existingUser) {
       return res.status(400).json({
@@ -74,7 +100,14 @@ app.post('/api/auth/register', async (req, res) => {
       });
     }
 
-    const hashedPassword = await bcrypt.hash(password, 10);
+    // Hash password with timeout handling
+    const hashedPassword = await Promise.race([
+      bcrypt.hash(password, 10),
+      new Promise((_, reject) => 
+        setTimeout(() => reject(new Error('Password hashing timeout')), 5000)
+      )
+    ]);
+
     const newUser = new User({ name, email, password: hashedPassword });
     await newUser.save();
 
@@ -95,29 +128,29 @@ app.post('/api/auth/register', async (req, res) => {
     console.error('Registration error:', error);
     res.status(500).json({
       success: false,
-      message: 'Registration failed',
-      error: error.message,
+      message: error.message === 'Password hashing timeout' 
+        ? 'Server timeout. Please try again.' 
+        : 'Registration failed',
+      error: process.env.NODE_ENV === 'development' ? error.message : undefined,
     });
   }
 });
-// Login Route
-app.post('/api/auth/login', async (req, res) => {
+
+// Login Route - with DB connection check
+app.post('/api/auth/login', ensureDB, async (req, res) => {
   try {
     const { email, password } = req.body;
 
-    // Find user by email
     const user = await User.findOne({ email });
     if (!user) {
       return res.status(400).json({ message: 'Invalid credentials' });
     }
 
-    // Check password
     const isMatch = await bcrypt.compare(password, user.password);
     if (!isMatch) {
       return res.status(400).json({ message: 'Invalid credentials' });
     }
 
-    // Create and send JWT
     const jwtSecret = process.env.JWT_SECRET || 'your_jwt_secret';
     const token = jwt.sign({ userId: user._id }, jwtSecret, { expiresIn: '1h' });
     res.status(200).json({ token });
@@ -128,9 +161,13 @@ app.post('/api/auth/login', async (req, res) => {
 });
 
 // Route to get user details
-app.get('/api/auth/user', async (req, res) => {
+app.get('/api/auth/user', ensureDB, async (req, res) => {
   try {
-    const token = req.headers.authorization.split(' ')[1];
+    const token = req.headers.authorization?.split(' ')[1];
+    if (!token) {
+      return res.status(401).json({ message: 'Authorization denied' });
+    }
+    
     const jwtSecret = process.env.JWT_SECRET || 'your_jwt_secret';
     const decoded = jwt.verify(token, jwtSecret);
 
@@ -147,9 +184,13 @@ app.get('/api/auth/user', async (req, res) => {
 });
 
 // Route to update user details
-app.put('/api/auth/user', async (req, res) => {
+app.put('/api/auth/user', ensureDB, async (req, res) => {
   try {
-    const token = req.headers.authorization.split(' ')[1];
+    const token = req.headers.authorization?.split(' ')[1];
+    if (!token) {
+      return res.status(401).json({ message: 'Authorization denied' });
+    }
+    
     const jwtSecret = process.env.JWT_SECRET || 'your_jwt_secret';
     const decoded = jwt.verify(token, jwtSecret);
 
@@ -173,8 +214,8 @@ app.put('/api/auth/user', async (req, res) => {
 });
 
 // Routes
-app.use('/api/auth', authRoutes);
-app.use('/api/contact', contactRoutes);
+app.use('/api/auth', ensureDB, authRoutes);
+app.use('/api/contact', ensureDB, contactRoutes);
 
 // Test API endpoint
 app.get('/api/test', (req, res) => {
@@ -184,6 +225,24 @@ app.get('/api/test', (req, res) => {
     timestamp: new Date().toISOString(),
     vercel: process.env.VERCEL || false
   });
+});
+
+// Health check endpoint with DB connection
+app.get('/api/health', async (req, res) => {
+  try {
+    await connectDB();
+    res.status(200).json({ 
+      status: 'ok', 
+      message: 'Server is running',
+      dbConnected: mongoose.connection.readyState === 1
+    });
+  } catch (error) {
+    res.status(500).json({ 
+      status: 'error', 
+      message: 'Database connection failed',
+      dbConnected: false
+    });
+  }
 });
 
 // Error handling middleware
@@ -196,30 +255,20 @@ app.use((err, req, res, next) => {
   });
 });
 
-// Initialize connection and start server
-(async () => {
-  const dbConnected = await connectDB();
-  
-  // Health check endpoint
-  app.get('/api/health', (req, res) => {
-    res.status(200).json({ 
-      status: 'ok', 
-      message: 'Server is running', 
-      dbConnected: dbConnected 
-    });
-  });
-  
-  // Start the Server
-  const PORT = process.env.PORT || 5500;
-  app.listen(PORT, () => {
-    console.log(`Server running on http://localhost:${PORT}`);
-  });
-})();
+// For Vercel serverless - export the handler
+module.exports = app;
 
-// Serve frontend in production
-if (process.env.NODE_ENV === 'production') {
-  const path = require('path');
-  app.get('*', (req, res) => {
-    res.sendFile(path.join(__dirname, '../build/index.html'));
-  });
+// For local development - start server
+if (process.env.NODE_ENV !== 'production' || process.env.VERCEL !== '1') {
+  (async () => {
+    try {
+      await connectDB();
+      const PORT = process.env.PORT || 5500;
+      app.listen(PORT, () => {
+        console.log(`Server running on http://localhost:${PORT}`);
+      });
+    } catch (error) {
+      console.error('Failed to start server:', error);
+    }
+  })();
 }
