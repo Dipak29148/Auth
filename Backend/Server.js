@@ -20,7 +20,7 @@ const app = express();
 // Middleware
 app.use(cors({
   origin: '*',
-  methods: ['GET', 'POST', 'PUT', 'DELETE'],
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization']
 }));
 app.use(bodyParser.json());
@@ -47,7 +47,7 @@ const connectDB = async () => {
     const conn = await mongoose.connect(process.env.MONGO_URI, {
       useNewUrlParser: true,
       useUnifiedTopology: true,
-      serverSelectionTimeoutMS: 5000, // Timeout after 5s instead of 30s
+      serverSelectionTimeoutMS: 5000,
       socketTimeoutMS: 45000,
     });
     cachedDb = conn;
@@ -69,6 +69,7 @@ const ensureDB = async (req, res, next) => {
     res.status(500).json({
       success: false,
       message: 'Database connection failed. Please try again.',
+      error: process.env.NODE_ENV === 'development' ? error.message : undefined
     });
   }
 };
@@ -100,13 +101,8 @@ app.post('/api/auth/register', ensureDB, async (req, res) => {
       });
     }
 
-    // Hash password with timeout handling
-    const hashedPassword = await Promise.race([
-      bcrypt.hash(password, 10),
-      new Promise((_, reject) => 
-        setTimeout(() => reject(new Error('Password hashing timeout')), 5000)
-      )
-    ]);
+    // Hash password
+    const hashedPassword = await bcrypt.hash(password, 10);
 
     const newUser = new User({ name, email, password: hashedPassword });
     await newUser.save();
@@ -128,9 +124,7 @@ app.post('/api/auth/register', ensureDB, async (req, res) => {
     console.error('Registration error:', error);
     res.status(500).json({
       success: false,
-      message: error.message === 'Password hashing timeout' 
-        ? 'Server timeout. Please try again.' 
-        : 'Registration failed',
+      message: 'Registration failed',
       error: process.env.NODE_ENV === 'development' ? error.message : undefined,
     });
   }
@@ -213,7 +207,7 @@ app.put('/api/auth/user', ensureDB, async (req, res) => {
   }
 });
 
-// Routes
+// Routes - Note: authRoutes only has /user route, so we need ensureDB here too
 app.use('/api/auth', ensureDB, authRoutes);
 app.use('/api/contact', ensureDB, contactRoutes);
 
@@ -240,26 +234,30 @@ app.get('/api/health', async (req, res) => {
     res.status(500).json({ 
       status: 'error', 
       message: 'Database connection failed',
-      dbConnected: false
+      dbConnected: false,
+      error: process.env.NODE_ENV === 'development' ? error.message : undefined
     });
   }
 });
 
-// Error handling middleware
+// Error handling middleware - must be last
 app.use((err, req, res, next) => {
-  console.error(err.stack);
-  res.status(500).json({
+  console.error('Error middleware:', err.stack);
+  res.status(err.status || 500).json({
     success: false,
-    message: 'Server error',
-    error: process.env.NODE_ENV === 'development' ? err.message : 'An unexpected error occurred'
+    message: err.message || 'Server error',
+    error: process.env.NODE_ENV === 'development' ? err.stack : undefined
   });
 });
 
-// For Vercel serverless - export the handler
-module.exports = app;
+// For Vercel serverless - export as a handler function
+module.exports = (req, res) => {
+  // Handle the request with the Express app
+  return app(req, res);
+};
 
 // For local development - start server
-if (process.env.NODE_ENV !== 'production' || process.env.VERCEL !== '1') {
+if (process.env.NODE_ENV !== 'production' || !process.env.VERCEL) {
   (async () => {
     try {
       await connectDB();
