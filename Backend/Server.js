@@ -25,52 +25,62 @@ app.use(cors({
 }));
 app.use(bodyParser.json());
 
-// MongoDB connection cache for serverless
+// MongoDB connection cache for serverless - use global scope
 let cachedDb = null;
+let connectionPromise = null;
 
 const connectDB = async () => {
-  // Return cached connection if available
-  if (cachedDb && mongoose.connection.readyState === 1) {
-    return cachedDb;
+  // Return cached connection if available and ready
+  if (mongoose.connection.readyState === 1) {
+    return mongoose.connection;
   }
 
-  try {
-    // If already connecting, wait for it
-    if (mongoose.connection.readyState === 2) {
-      await new Promise((resolve, reject) => {
-        const timeout = setTimeout(() => reject(new Error('Connection timeout')), 10000);
-        mongoose.connection.once('connected', () => {
-          clearTimeout(timeout);
-          resolve();
-        });
-        mongoose.connection.once('error', (err) => {
-          clearTimeout(timeout);
-          reject(err);
-        });
+  // If already connecting, return the existing promise
+  if (connectionPromise) {
+    return connectionPromise;
+  }
+
+  // Create new connection promise
+  connectionPromise = (async () => {
+    try {
+      // Close existing connection if in wrong state
+      if (mongoose.connection.readyState !== 0) {
+        await mongoose.connection.close();
+      }
+
+      console.log('Connecting to MongoDB...');
+      const conn = await mongoose.connect(process.env.MONGO_URI, {
+        useNewUrlParser: true,
+        useUnifiedTopology: true,
+        serverSelectionTimeoutMS: 3000, // Reduced from 5s to 3s
+        socketTimeoutMS: 30000, // Reduced from 45s to 30s
+        maxPoolSize: 1, // Important for serverless - limit connections
+        minPoolSize: 0,
+        maxIdleTimeMS: 30000,
       });
-      return mongoose.connection;
+      
+      cachedDb = conn;
+      console.log('MongoDB Connected Successfully');
+      return conn;
+    } catch (error) {
+      console.error('MongoDB Connection Error:', error);
+      connectionPromise = null; // Reset on error
+      throw error;
     }
+  })();
 
-    console.log('Connecting to MongoDB...');
-    const conn = await mongoose.connect(process.env.MONGO_URI, {
-      useNewUrlParser: true,
-      useUnifiedTopology: true,
-      serverSelectionTimeoutMS: 5000,
-      socketTimeoutMS: 45000,
-    });
-    cachedDb = conn;
-    console.log('MongoDB Connected Successfully');
-    return conn;
-  } catch (error) {
-    console.error('MongoDB Connection Error:', error);
-    throw error;
-  }
+  return connectionPromise;
 };
 
-// Middleware to ensure DB connection before handling requests
+// Middleware to ensure DB connection - with timeout
 const ensureDB = async (req, res, next) => {
   try {
-    await connectDB();
+    // Set a timeout for the entire connection process
+    const connectionTimeout = new Promise((_, reject) => {
+      setTimeout(() => reject(new Error('Database connection timeout')), 3000);
+    });
+
+    await Promise.race([connectDB(), connectionTimeout]);
     next();
   } catch (error) {
     console.error('Database connection failed:', error);
@@ -101,7 +111,7 @@ app.post('/api/auth/register', ensureDB, async (req, res) => {
     }
 
     // Check existing user
-    const existingUser = await User.findOne({ email });
+    const existingUser = await User.findOne({ email }).maxTimeMS(2000);
     if (existingUser) {
       return res.status(400).json({
         success: false,
@@ -109,8 +119,8 @@ app.post('/api/auth/register', ensureDB, async (req, res) => {
       });
     }
 
-    // Hash password
-    const hashedPassword = await bcrypt.hash(password, 10);
+    // Hash password with reduced rounds for faster processing (8 instead of 10)
+    const hashedPassword = await bcrypt.hash(password, 8);
 
     const newUser = new User({ name, email, password: hashedPassword });
     await newUser.save();
@@ -143,7 +153,7 @@ app.post('/api/auth/login', ensureDB, async (req, res) => {
   try {
     const { email, password } = req.body;
 
-    const user = await User.findOne({ email });
+    const user = await User.findOne({ email }).maxTimeMS(2000);
     if (!user) {
       return res.status(400).json({ message: 'Invalid credentials' });
     }
@@ -192,7 +202,7 @@ app.put('/api/auth/user', ensureDB, async (req, res) => {
   }
 });
 
-// Routes - Note: authRoutes only has /user route, so we need ensureDB here too
+// Routes
 app.use('/api/auth', ensureDB, authRoutes);
 app.use('/api/contact', ensureDB, contactRoutes);
 
@@ -238,9 +248,8 @@ app.use((err, req, res, next) => {
 // For Vercel serverless - export as an async handler function
 module.exports = async (req, res) => {
   try {
-    // Ensure DB connection
-    await connectDB();
-    // Handle the request with the Express app
+    // Don't connect here - let the middleware handle it per route
+    // This prevents blocking the entire handler
     app(req, res);
   } catch (error) {
     console.error('Serverless handler error:', error);
