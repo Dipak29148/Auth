@@ -60,18 +60,21 @@ const Registration = () => {
     } catch (error) {
       let errorMessage = 'Registration failed. Please try again later.';
 
-      // Handle 504 Gateway Timeout specifically
-      if (error.response?.status === 504 || error.code === 'ERR_BAD_RESPONSE') {
-        errorMessage = 'Server timeout. The request is taking too long. Please try again in a moment.';
-        addToast('Server timeout. Please try again.', 'error');
-      } else if (error.code === 'ECONNABORTED') {
-        errorMessage = 'Request timed out. The server is taking too long to respond.';
+      if (error.code === 'ECONNABORTED' || error.code === 'ERR_BAD_RESPONSE') {
+        // Handle timeout and gateway errors
+        if (error.response?.status === 504) {
+          errorMessage = 'The server is taking too long to respond. Please try again in a moment.';
+        } else {
+          errorMessage = 'Request timed out. The server is taking too long to respond.';
+        }
       } else if (error.response) {
         // Handle different response data types more defensively
         const responseData = error.response.data;
         
-        // Check if responseData exists and is an object (but not null)
-        if (responseData && typeof responseData === 'object' && responseData !== null) {
+        // Handle 504 Gateway Timeout
+        if (error.response.status === 504) {
+          errorMessage = 'Server timeout. Please try again in a moment.';
+        } else if (responseData && typeof responseData === 'object' && responseData !== null) {
           // Extract message or error property, ensuring it's a string
           const msg = responseData.message || responseData.error;
           if (typeof msg === 'string' && msg.length > 0) {
@@ -91,6 +94,11 @@ const Registration = () => {
       // Final safety check - ensure errorMessage is always a string
       setError(String(errorMessage || 'Registration failed. Please try again later.'));
       console.error('Registration error:', error);
+      
+      // Also show toast for better UX
+      if (error.response?.status === 504) {
+        addToast('Server timeout. Please try again.', 'error');
+      }
     } finally {
       setLoading(false);
     }

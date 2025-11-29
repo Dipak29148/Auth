@@ -37,8 +37,16 @@ const connectDB = async () => {
   try {
     // If already connecting, wait for it
     if (mongoose.connection.readyState === 2) {
-      await new Promise((resolve) => {
-        mongoose.connection.once('connected', resolve);
+      await new Promise((resolve, reject) => {
+        const timeout = setTimeout(() => reject(new Error('Connection timeout')), 10000);
+        mongoose.connection.once('connected', () => {
+          clearTimeout(timeout);
+          resolve();
+        });
+        mongoose.connection.once('error', (err) => {
+          clearTimeout(timeout);
+          reject(err);
+        });
       });
       return mongoose.connection;
     }
@@ -154,29 +162,6 @@ app.post('/api/auth/login', ensureDB, async (req, res) => {
   }
 });
 
-// Route to get user details
-app.get('/api/auth/user', ensureDB, async (req, res) => {
-  try {
-    const token = req.headers.authorization?.split(' ')[1];
-    if (!token) {
-      return res.status(401).json({ message: 'Authorization denied' });
-    }
-    
-    const jwtSecret = process.env.JWT_SECRET || 'your_jwt_secret';
-    const decoded = jwt.verify(token, jwtSecret);
-
-    const user = await User.findById(decoded.userId).select('-password');
-    if (!user) {
-      return res.status(404).json({ message: 'User not found' });
-    }
-
-    res.status(200).json(user);
-  } catch (error) {
-    console.error('Failed to fetch user details:', error);
-    res.status(500).json({ message: 'Server error' });
-  }
-});
-
 // Route to update user details
 app.put('/api/auth/user', ensureDB, async (req, res) => {
   try {
@@ -242,7 +227,7 @@ app.get('/api/health', async (req, res) => {
 
 // Error handling middleware - must be last
 app.use((err, req, res, next) => {
-  console.error('Error middleware:', err.stack);
+  console.error('Error middleware:', err);
   res.status(err.status || 500).json({
     success: false,
     message: err.message || 'Server error',
@@ -250,10 +235,23 @@ app.use((err, req, res, next) => {
   });
 });
 
-// For Vercel serverless - export as a handler function
-module.exports = (req, res) => {
-  // Handle the request with the Express app
-  return app(req, res);
+// For Vercel serverless - export as an async handler function
+module.exports = async (req, res) => {
+  try {
+    // Ensure DB connection
+    await connectDB();
+    // Handle the request with the Express app
+    app(req, res);
+  } catch (error) {
+    console.error('Serverless handler error:', error);
+    if (!res.headersSent) {
+      res.status(500).json({
+        success: false,
+        message: 'Internal server error',
+        error: process.env.NODE_ENV === 'development' ? error.message : undefined
+      });
+    }
+  }
 };
 
 // For local development - start server

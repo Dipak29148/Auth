@@ -6,11 +6,19 @@ const jwt = require('jsonwebtoken');
 
 // Middleware to authenticate token and attach user to the request
 const authenticateToken = (req, res, next) => {
-  const token = req.header('Authorization').split(' ')[1];
-  if (!token) return res.status(401).json({ message: 'Authorization denied' });
+  const authHeader = req.header('Authorization');
+  if (!authHeader) {
+    return res.status(401).json({ message: 'Authorization denied' });
+  }
+  
+  const token = authHeader.split(' ')[1];
+  if (!token) {
+    return res.status(401).json({ message: 'Authorization denied' });
+  }
 
   try {
-    const decoded = jwt.verify(token, 'your_jwt_secret');
+    const jwtSecret = process.env.JWT_SECRET || 'your_jwt_secret';
+    const decoded = jwt.verify(token, jwtSecret);
     req.user = decoded;
     next();
   } catch (error) {
