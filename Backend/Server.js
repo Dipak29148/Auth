@@ -94,7 +94,7 @@ const ensureDB = async (req, res, next) => {
 
 // Registration Route - with DB connection check
 app.post('/api/auth/register', ensureDB, async (req, res) => {
-  console.log('Registration request received:', req.body);
+  // console.log('Registration request received:', req.body);
 
   try {
     // Trim input fields
