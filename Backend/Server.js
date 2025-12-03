@@ -25,46 +25,48 @@ app.use(cors({
 }));
 app.use(bodyParser.json());
 
-// MongoDB connection cache for serverless - use global scope
-let cachedDb = null;
+// MongoDB connection cache for serverless
 let connectionPromise = null;
 
 const connectDB = async () => {
-  // Return cached connection if available and ready
+  // Return cached connection if ready
   if (mongoose.connection.readyState === 1) {
+    console.log('Using existing MongoDB connection');
     return mongoose.connection;
   }
 
-  // If already connecting, return the existing promise
+  // If already connecting, return existing promise
   if (connectionPromise) {
+    console.log('Returning existing connection promise');
     return connectionPromise;
   }
 
   // Create new connection promise
   connectionPromise = (async () => {
     try {
-      // Close existing connection if in wrong state
-      if (mongoose.connection.readyState !== 0) {
-        await mongoose.connection.close();
+      // Close any stale connections
+      if (mongoose.connection.readyState !== 0 && mongoose.connection.readyState !== 1) {
+        console.log('Closing stale connection');
+        await mongoose.disconnect();
       }
 
       console.log('Connecting to MongoDB...');
       const conn = await mongoose.connect(process.env.MONGO_URI, {
         useNewUrlParser: true,
         useUnifiedTopology: true,
-        serverSelectionTimeoutMS: 3000, // Reduced from 5s to 3s
-        socketTimeoutMS: 30000, // Reduced from 45s to 30s
-        maxPoolSize: 1, // Important for serverless - limit connections
+        serverSelectionTimeoutMS: 5000,
+        socketTimeoutMS: 45000,
+        connectTimeoutMS: 10000,
+        maxPoolSize: 10,
         minPoolSize: 0,
-        maxIdleTimeMS: 30000,
+        retryWrites: true,
       });
       
-      cachedDb = conn;
       console.log('MongoDB Connected Successfully');
       return conn;
     } catch (error) {
-      console.error('MongoDB Connection Error:', error);
-      connectionPromise = null; // Reset on error
+      console.error('MongoDB Connection Error:', error.message);
+      connectionPromise = null; // Reset promise on error
       throw error;
     }
   })();
@@ -72,19 +74,14 @@ const connectDB = async () => {
   return connectionPromise;
 };
 
-// Middleware to ensure DB connection - with timeout
+// Middleware to ensure DB connection
 const ensureDB = async (req, res, next) => {
   try {
-    // Set a timeout for the entire connection process
-    const connectionTimeout = new Promise((_, reject) => {
-      setTimeout(() => reject(new Error('Database connection timeout')), 3000);
-    });
-
-    await Promise.race([connectDB(), connectionTimeout]);
+    await connectDB();
     next();
   } catch (error) {
-    console.error('Database connection failed:', error);
-    res.status(500).json({
+    console.error('Database connection failed:', error.message);
+    return res.status(503).json({
       success: false,
       message: 'Database connection failed. Please try again.',
       error: process.env.NODE_ENV === 'development' ? error.message : undefined
@@ -92,17 +89,14 @@ const ensureDB = async (req, res, next) => {
   }
 };
 
-// Registration Route - with DB connection check
+// Registration Route
 app.post('/api/auth/register', ensureDB, async (req, res) => {
-  // console.log('Registration request received:', req.body);
-
   try {
-    // Trim input fields
     const name = req.body.name?.trim();
     const email = req.body.email?.trim();
     const password = req.body.password?.trim();
 
-    // Basic validation
+    // Validation
     if (!name || !email || !password) {
       return res.status(400).json({
         success: false,
@@ -110,23 +104,30 @@ app.post('/api/auth/register', ensureDB, async (req, res) => {
       });
     }
 
-    // Check existing user
-    const existingUser = await User.findOne({ email }).maxTimeMS(2000);
-    if (existingUser) {
+    if (password.length < 6) {
       return res.status(400).json({
+        success: false,
+        message: 'Password must be at least 6 characters',
+      });
+    }
+
+    // Check existing user
+    const existingUser = await User.findOne({ email });
+    if (existingUser) {
+      return res.status(409).json({
         success: false,
         message: 'Email already registered',
       });
     }
 
-    // Hash password with reduced rounds for faster processing (8 instead of 10)
-    const hashedPassword = await bcrypt.hash(password, 8);
+    // Hash password with 10 rounds (standard)
+    const hashedPassword = await bcrypt.hash(password, 10);
 
     const newUser = new User({ name, email, password: hashedPassword });
     await newUser.save();
 
     const jwtSecret = process.env.JWT_SECRET || 'your_jwt_secret';
-    const token = jwt.sign({ userId: newUser._id }, jwtSecret, { expiresIn: '1h' });
+    const token = jwt.sign({ userId: newUser._id }, jwtSecret, { expiresIn: '7d' });
 
     res.status(201).json({
       success: true,
@@ -148,31 +149,56 @@ app.post('/api/auth/register', ensureDB, async (req, res) => {
   }
 });
 
-// Login Route - with DB connection check
+// Login Route
 app.post('/api/auth/login', ensureDB, async (req, res) => {
   try {
     const { email, password } = req.body;
 
-    const user = await User.findOne({ email }).maxTimeMS(2000);
+    if (!email || !password) {
+      return res.status(400).json({ 
+        success: false,
+        message: 'Email and password required' 
+      });
+    }
+
+    const user = await User.findOne({ email });
     if (!user) {
-      return res.status(400).json({ message: 'Invalid credentials' });
+      return res.status(401).json({ 
+        success: false,
+        message: 'Invalid credentials' 
+      });
     }
 
     const isMatch = await bcrypt.compare(password, user.password);
     if (!isMatch) {
-      return res.status(400).json({ message: 'Invalid credentials' });
+      return res.status(401).json({ 
+        success: false,
+        message: 'Invalid credentials' 
+      });
     }
 
     const jwtSecret = process.env.JWT_SECRET || 'your_jwt_secret';
-    const token = jwt.sign({ userId: user._id }, jwtSecret, { expiresIn: '1h' });
-    res.status(200).json({ token });
+    const token = jwt.sign({ userId: user._id }, jwtSecret, { expiresIn: '7d' });
+    
+    res.status(200).json({ 
+      success: true,
+      token,
+      user: {
+        id: user._id,
+        name: user.name,
+        email: user.email,
+      }
+    });
   } catch (error) {
     console.error('Login error:', error);
-    res.status(500).json({ message: 'Server error' });
+    res.status(500).json({ 
+      success: false,
+      message: 'Server error' 
+    });
   }
 });
 
-// Route to update user details
+// Update user details
 app.put('/api/auth/user', ensureDB, async (req, res) => {
   try {
     const token = req.headers.authorization?.split(' ')[1];
@@ -190,14 +216,17 @@ app.put('/api/auth/user', ensureDB, async (req, res) => {
       return res.status(404).json({ message: 'User not found' });
     }
 
-    user.name = name || user.name;
-    user.email = email || user.email;
+    if (name) user.name = name;
+    if (email) user.email = email;
 
     await user.save();
 
-    res.status(200).json(user);
+    res.status(200).json({
+      success: true,
+      user
+    });
   } catch (error) {
-    console.error('Failed to update user details:', error);
+    console.error('Update user error:', error);
     res.status(500).json({ message: 'Server error' });
   }
 });
@@ -206,17 +235,7 @@ app.put('/api/auth/user', ensureDB, async (req, res) => {
 app.use('/api/auth', ensureDB, authRoutes);
 app.use('/api/contact', ensureDB, contactRoutes);
 
-// Test API endpoint
-app.get('/api/test', (req, res) => {
-  res.status(200).json({
-    message: 'API is working',
-    environment: process.env.NODE_ENV || 'development',
-    timestamp: new Date().toISOString(),
-    vercel: process.env.VERCEL || false
-  });
-});
-
-// Health check endpoint with DB connection
+// Health check
 app.get('/api/health', async (req, res) => {
   try {
     await connectDB();
@@ -226,45 +245,34 @@ app.get('/api/health', async (req, res) => {
       dbConnected: mongoose.connection.readyState === 1
     });
   } catch (error) {
-    res.status(500).json({ 
+    res.status(503).json({ 
       status: 'error', 
       message: 'Database connection failed',
-      dbConnected: false,
-      error: process.env.NODE_ENV === 'development' ? error.message : undefined
+      dbConnected: false
     });
   }
 });
 
-// Error handling middleware - must be last
-app.use((err, req, res, next) => {
-  console.error('Error middleware:', err);
-  res.status(err.status || 500).json({
-    success: false,
-    message: err.message || 'Server error',
-    error: process.env.NODE_ENV === 'development' ? err.stack : undefined
+// Test endpoint
+app.get('/api/test', (req, res) => {
+  res.status(200).json({
+    message: 'API is working',
+    environment: process.env.NODE_ENV || 'development',
+    timestamp: new Date().toISOString(),
   });
 });
 
-// For Vercel serverless - export as an async handler function
-module.exports = async (req, res) => {
-  try {
-    // Don't connect here - let the middleware handle it per route
-    // This prevents blocking the entire handler
-    app(req, res);
-  } catch (error) {
-    console.error('Serverless handler error:', error);
-    if (!res.headersSent) {
-      res.status(500).json({
-        success: false,
-        message: 'Internal server error',
-        error: process.env.NODE_ENV === 'development' ? error.message : undefined
-      });
-    }
-  }
-};
+// Error handling middleware
+app.use((err, req, res, next) => {
+  console.error('Error:', err);
+  res.status(err.status || 500).json({
+    success: false,
+    message: err.message || 'Server error'
+  });
+});
 
-// For local development - start server
-if (process.env.NODE_ENV !== 'production' || !process.env.VERCEL) {
+// Local development server
+if (require.main === module) {
   (async () => {
     try {
       await connectDB();
@@ -274,6 +282,9 @@ if (process.env.NODE_ENV !== 'production' || !process.env.VERCEL) {
       });
     } catch (error) {
       console.error('Failed to start server:', error);
+      process.exit(1);
     }
   })();
 }
+
+module.exports = app;
