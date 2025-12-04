@@ -4,6 +4,7 @@ const bodyParser = require('body-parser');
 const mongoose = require('mongoose');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
+const { Schema } = mongoose;
 const dotenv = require('dotenv');
 
 // Import routes
@@ -19,88 +20,30 @@ const app = express();
 
 // Middleware
 app.use(cors({
-  origin: '*',
-  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization']
+  origin: 'http://localhost:3000',
+  credentials: true,
 }));
 app.use(bodyParser.json());
 
-// MongoDB connection cache for serverless
-let connectionPromise = null;
-
-const connectDB = async () => {
-  // Return cached connection if ready
-  if (mongoose.connection.readyState === 1) {
-    console.log('✓ Using existing MongoDB connection');
-    return mongoose.connection;
-  }
-
-  // If already connecting, return existing promise
-  if (connectionPromise) {
-    console.log('✓ Returning existing connection promise');
-    return connectionPromise;
-  }
-
-  // Create new connection promise
-  connectionPromise = (async () => {
-    try {
-      if (mongoose.connection.readyState !== 0 && mongoose.connection.readyState !== 1) {
-        console.log('Closing stale connection');
-        await mongoose.disconnect();
-      }
-
-      console.log('🔄 Connecting to MongoDB...');
-      
-      // CLEAN - No deprecated options
-      const conn = await mongoose.connect(process.env.MONGO_URI, {
-        serverSelectionTimeoutMS: 8000,
-        socketTimeoutMS: 45000,
-        connectTimeoutMS: 15000,
-        maxPoolSize: 5,
-        minPoolSize: 0,
-        retryWrites: true,
-        family: 4
-      });
-      
-      console.log('✓ MongoDB Connected Successfully');
-      return conn;
-    } catch (error) {
-      console.error('❌ MongoDB Connection Error:', {
-        message: error.message,
-        code: error.code,
-        name: error.name
-      });
-      connectionPromise = null;
-      throw error;
-    }
-  })();
-
-  return connectionPromise;
-};
-
-// Middleware to ensure DB connection
-const ensureDB = async (req, res, next) => {
-  try {
-    await connectDB();
-    next();
-  } catch (error) {
-    console.error('Database connection failed:', error.message);
-    return res.status(503).json({
-      success: false,
-      message: 'Database connection failed. Please try again.',
-      error: process.env.NODE_ENV === 'development' ? error.message : undefined
-    });
-  }
-};
+// Connect to MongoDB
+mongoose.connect(process.env.MONGO_URI, {
+  useNewUrlParser: true,
+  useUnifiedTopology: true,
+})
+  .then(() => console.log('Connected to MongoDB'))
+  .catch(err => console.error('Failed to connect to MongoDB:', err));
 
 // Registration Route
-app.post('/api/auth/register', ensureDB, async (req, res) => {
+app.post('/api/auth/register', async (req, res) => {
+  console.log('Registration request received:', req.body);
+
   try {
+    // Trim input fields
     const name = req.body.name?.trim();
     const email = req.body.email?.trim();
     const password = req.body.password?.trim();
 
-    // Validation
+    // Basic validation
     if (!name || !email || !password) {
       return res.status(400).json({
         success: false,
@@ -108,30 +51,19 @@ app.post('/api/auth/register', ensureDB, async (req, res) => {
       });
     }
 
-    if (password.length < 6) {
-      return res.status(400).json({
-        success: false,
-        message: 'Password must be at least 6 characters',
-      });
-    }
-
-    // Check existing user
     const existingUser = await User.findOne({ email });
     if (existingUser) {
-      return res.status(409).json({
+      return res.status(400).json({
         success: false,
         message: 'Email already registered',
       });
     }
 
-    // Hash password
     const hashedPassword = await bcrypt.hash(password, 10);
-
     const newUser = new User({ name, email, password: hashedPassword });
     await newUser.save();
 
-    const jwtSecret = process.env.JWT_SECRET || 'your_jwt_secret';
-    const token = jwt.sign({ userId: newUser._id }, jwtSecret, { expiresIn: '7d' });
+    const token = jwt.sign({ userId: newUser._id }, 'your_jwt_secret', { expiresIn: '1h' });
 
     res.status(201).json({
       success: true,
@@ -148,70 +80,59 @@ app.post('/api/auth/register', ensureDB, async (req, res) => {
     res.status(500).json({
       success: false,
       message: 'Registration failed',
-      error: process.env.NODE_ENV === 'development' ? error.message : undefined,
+      error: error.message,
     });
   }
 });
-
 // Login Route
-app.post('/api/auth/login', ensureDB, async (req, res) => {
+app.post('/api/auth/login', async (req, res) => {
   try {
     const { email, password } = req.body;
 
-    if (!email || !password) {
-      return res.status(400).json({ 
-        success: false,
-        message: 'Email and password required' 
-      });
-    }
-
+    // Find user by email
     const user = await User.findOne({ email });
     if (!user) {
-      return res.status(401).json({ 
-        success: false,
-        message: 'Invalid credentials' 
-      });
+      return res.status(400).json({ message: 'Invalid credentials' });
     }
 
+    // Check password
     const isMatch = await bcrypt.compare(password, user.password);
     if (!isMatch) {
-      return res.status(401).json({ 
-        success: false,
-        message: 'Invalid credentials' 
-      });
+      return res.status(400).json({ message: 'Invalid credentials' });
     }
 
-    const jwtSecret = process.env.JWT_SECRET || 'your_jwt_secret';
-    const token = jwt.sign({ userId: user._id }, jwtSecret, { expiresIn: '7d' });
-    
-    res.status(200).json({ 
-      success: true,
-      token,
-      user: {
-        id: user._id,
-        name: user.name,
-        email: user.email,
-      }
-    });
+    // Create and send JWT
+    const token = jwt.sign({ userId: user._id }, 'your_jwt_secret', { expiresIn: '1h' });
+    res.status(200).json({ token });
   } catch (error) {
     console.error('Login error:', error);
-    res.status(500).json({ 
-      success: false,
-      message: 'Server error' 
-    });
+    res.status(500).json({ message: 'Server error' });
   }
 });
 
-// Update user details
-app.put('/api/auth/user', ensureDB, async (req, res) => {
+// Route to get user details
+app.get('/api/auth/user', async (req, res) => {
   try {
-    const token = req.headers.authorization?.split(' ')[1];
-    if (!token) {
-      return res.status(401).json({ message: 'Authorization denied' });
+    const token = req.headers.authorization.split(' ')[1];
+    const decoded = jwt.verify(token, 'your_jwt_secret');
+
+    const user = await User.findById(decoded.userId).select('-password');
+    if (!user) {
+      return res.status(404).json({ message: 'User not found' });
     }
-    
-    const jwtSecret = process.env.JWT_SECRET || 'your_jwt_secret';
-    const decoded = jwt.verify(token, jwtSecret);
+
+    res.status(200).json(user);
+  } catch (error) {
+    console.error('Failed to fetch user details:', error);
+    res.status(500).json({ message: 'Server error' });
+  }
+});
+
+// Route to update user details
+app.put('/api/auth/user', async (req, res) => {
+  try {
+    const token = req.headers.authorization.split(' ')[1];
+    const decoded = jwt.verify(token, 'your_jwt_secret');
 
     const { name, email } = req.body;
 
@@ -220,75 +141,24 @@ app.put('/api/auth/user', ensureDB, async (req, res) => {
       return res.status(404).json({ message: 'User not found' });
     }
 
-    if (name) user.name = name;
-    if (email) user.email = email;
+    user.name = name || user.name;
+    user.email = email || user.email;
 
     await user.save();
 
-    res.status(200).json({
-      success: true,
-      user
-    });
+    res.status(200).json(user);
   } catch (error) {
-    console.error('Update user error:', error);
+    console.error('Failed to update user details:', error);
     res.status(500).json({ message: 'Server error' });
   }
 });
 
 // Routes
-app.use('/api/auth', ensureDB, authRoutes);
-app.use('/api/contact', ensureDB, contactRoutes);
+app.use('/api/auth', authRoutes);
+app.use('/api/contact', contactRoutes);
 
-// Health check
-app.get('/api/health', async (req, res) => {
-  try {
-    await connectDB();
-    res.status(200).json({ 
-      status: 'ok', 
-      message: 'Server is running',
-      dbConnected: mongoose.connection.readyState === 1
-    });
-  } catch (error) {
-    res.status(503).json({ 
-      status: 'error', 
-      message: 'Database connection failed',
-      dbConnected: false
-    });
-  }
+// Start the Server
+const PORT = process.env.PORT || 5500;
+app.listen(PORT, () => {
+  console.log(`Server running on http://localhost:${PORT}`);
 });
-
-// Test endpoint
-app.get('/api/test', (req, res) => {
-  res.status(200).json({
-    message: 'API is working',
-    environment: process.env.NODE_ENV || 'development',
-    timestamp: new Date().toISOString(),
-  });
-});
-
-// Error handling middleware
-app.use((err, req, res, next) => {
-  console.error('Error:', err);
-  res.status(err.status || 500).json({
-    success: false,
-    message: err.message || 'Server error'
-  });
-});
-
-// Local development server
-if (require.main === module) {
-  (async () => {
-    try {
-      await connectDB();
-      const PORT = process.env.PORT || 5500;
-      app.listen(PORT, () => {
-        console.log(`Server running on http://localhost:${PORT}`);
-      });
-    } catch (error) {
-      console.error('Failed to start server:', error);
-      process.exit(1);
-    }
-  })();
-}
-
-module.exports = app;

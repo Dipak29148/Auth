@@ -2,20 +2,18 @@
   "version": 2,
   "buildCommand": "npm run build",
   "outputDirectory": "build",
-  "builds": [
+  "env": {
+    "MONGO_URI": "@mongo_uri",
+    "JWT_SECRET": "@jwt_secret"
+  },
+  "routes": [
     {
-      "src": "Backend/Server.js",
-      "use": "@vercel/node",
-      "config": { "maxDuration": 10 }
+      "src": "/api/(.*)",
+      "dest": "Backend/Server.js"
     },
     {
-      "src": "package.json",
-      "use": "@vercel/static-build",
-      "config": { "distDir": "build" }
+      "src": "/(.*)",
+      "dest": "/index.html"
     }
-  ],
-  "routes": [
-    { "src": "/api/(.*)", "dest": "Backend/Server.js" },
-    { "src": "/(.*)", "dest": "build/index.html" }
   ]
 }
