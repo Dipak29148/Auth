@@ -1,7 +1,7 @@
 // src/Components/Dashboard.js
 import React, { useState, useEffect } from 'react';
-import axios from 'axios';
 import './Dashboard.css';
+import api from '../api';
 import { useToast } from '../context/ToastContext';
 
 const Dashboard = () => {
@@ -26,7 +26,7 @@ const Dashboard = () => {
           return; // Don't redirect immediately if we're logging out
         }
 
-        const response = await axios.get('/api/auth/user', {
+        const response = await api.get('/api/auth/user', {
           headers: {
             Authorization: `Bearer ${token}`,
           },
@@ -67,7 +67,7 @@ const Dashboard = () => {
   const handleSave = async () => {
     try {
       const token = localStorage.getItem('authToken');
-      const response = await axios.put('/api/auth/user', {
+      const response = await api.put('/api/auth/user', {
         name: newName,
         email: newEmail,
       }, {

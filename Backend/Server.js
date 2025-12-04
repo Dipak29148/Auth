@@ -20,15 +20,21 @@ const app = express();
 
 // Middleware
 app.use(cors({
-  origin: 'http://localhost:3000',
+  origin: process.env.NODE_ENV === 'production'
+    ? 'https://auth-eta-five.vercel.app' // replace with your production domain or use '*' if needed
+    : 'http://localhost:3000',
   credentials: true,
 }));
 app.use(bodyParser.json());
 
 // Connect to MongoDB
 mongoose.connect(process.env.MONGO_URI, {
-  useNewUrlParser: true,
-  useUnifiedTopology: true,
+  // removed deprecated options (useNewUrlParser/useUnifiedTopology)
+  serverSelectionTimeoutMS: 8000,
+  socketTimeoutMS: 45000,
+  connectTimeoutMS: 15000,
+  maxPoolSize: 5,
+  family: 4
 })
   .then(() => console.log('Connected to MongoDB'))
   .catch(err => console.error('Failed to connect to MongoDB:', err));
@@ -63,7 +69,7 @@ app.post('/api/auth/register', async (req, res) => {
     const newUser = new User({ name, email, password: hashedPassword });
     await newUser.save();
 
-    const token = jwt.sign({ userId: newUser._id }, 'your_jwt_secret', { expiresIn: '1h' });
+    const token = jwt.sign({ userId: newUser._id }, process.env.JWT_SECRET || 'change_this_secret', { expiresIn: '1h' });
 
     res.status(201).json({
       success: true,
@@ -102,7 +108,7 @@ app.post('/api/auth/login', async (req, res) => {
     }
 
     // Create and send JWT
-    const token = jwt.sign({ userId: user._id }, 'your_jwt_secret', { expiresIn: '1h' });
+    const token = jwt.sign({ userId: user._id }, process.env.JWT_SECRET || 'change_this_secret', { expiresIn: '1h' });
     res.status(200).json({ token });
   } catch (error) {
     console.error('Login error:', error);
@@ -114,7 +120,7 @@ app.post('/api/auth/login', async (req, res) => {
 app.get('/api/auth/user', async (req, res) => {
   try {
     const token = req.headers.authorization.split(' ')[1];
-    const decoded = jwt.verify(token, 'your_jwt_secret');
+    const decoded = jwt.verify(token, process.env.JWT_SECRET || 'change_this_secret');
 
     const user = await User.findById(decoded.userId).select('-password');
     if (!user) {
@@ -132,7 +138,7 @@ app.get('/api/auth/user', async (req, res) => {
 app.put('/api/auth/user', async (req, res) => {
   try {
     const token = req.headers.authorization.split(' ')[1];
-    const decoded = jwt.verify(token, 'your_jwt_secret');
+    const decoded = jwt.verify(token, process.env.JWT_SECRET || 'change_this_secret');
 
     const { name, email } = req.body;
 
