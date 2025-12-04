@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import axios from 'axios';
+import api from '../api';
 import { useToast } from '../context/ToastContext';
 
 const Login = ({ onLogin }) => {
@@ -14,7 +14,7 @@ const Login = ({ onLogin }) => {
     setLoading(true);
 
     try {
-      const response = await axios.post('/api/auth/login', { email, password }, { withCredentials: true });
+      const response = await api.post('/api/auth/login', { email, password }, { withCredentials: true });
       
       if (response.data.token) {
         // Store the token in local storage

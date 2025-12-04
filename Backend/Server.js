@@ -19,12 +19,19 @@ dotenv.config();
 const app = express();
 
 // Middleware
-app.use(cors({
-  origin: process.env.NODE_ENV === 'production'
-    ? 'https://auth-eta-five.vercel.app' // replace with your production domain or use '*' if needed
-    : 'http://localhost:3000',
-  credentials: true,
-}));
+// Allow frontend origin to be configured via env for different deployments (Vercel, localhost, etc.)
+const FRONTEND_ORIGIN =
+  process.env.FRONTEND_ORIGIN ||
+  (process.env.NODE_ENV === 'production'
+    ? 'https://auth-eta-five.vercel.app' // default production frontend (can be overridden)
+    : 'http://localhost:3000');
+
+app.use(
+  cors({
+    origin: FRONTEND_ORIGIN,
+    credentials: true,
+  })
+);
 app.use(bodyParser.json());
 
 // Connect to MongoDB
@@ -162,6 +169,11 @@ app.put('/api/auth/user', async (req, res) => {
 // Routes
 app.use('/api/auth', authRoutes);
 app.use('/api/contact', contactRoutes);
+
+// Health check / default route for root URL
+app.get('/', (req, res) => {
+  res.send('Auth API is running. Use /api/... endpoints.');
+});
 
 // Start the Server
 const PORT = process.env.PORT || 5500;

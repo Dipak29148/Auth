@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import axios from 'axios';
+import api from '../api';
 import { useToast } from '../context/ToastContext';
 const Registration = () => {
   const [formData, setFormData] = useState({
@@ -31,7 +31,7 @@ const Registration = () => {
   
     try {
       console.log('Submitting registration to API...');
-      const response = await axios.post(
+      const response = await api.post(
         '/api/auth/register',
         trimmedData,
         {
