@@ -6,26 +6,16 @@
     {
       "src": "Backend/Server.js",
       "use": "@vercel/node",
-      "config": {
-        "maxDuration": 10
-      }
+      "config": { "maxDuration": 10 }
     },
     {
       "src": "package.json",
       "use": "@vercel/static-build",
-      "config": {
-        "distDir": "build"
-      }
+      "config": { "distDir": "build" }
     }
   ],
   "routes": [
-    {
-      "src": "/api/(.*)",
-      "dest": "Backend/Server.js"
-    },
-    {
-      "src": "/(.*)",
-      "dest": "build/index.html"
-    }
+    { "src": "/api/(.*)", "dest": "Backend/Server.js" },
+    { "src": "/(.*)", "dest": "build/index.html" }
   ]
 }

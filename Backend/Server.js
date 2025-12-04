@@ -31,42 +31,46 @@ let connectionPromise = null;
 const connectDB = async () => {
   // Return cached connection if ready
   if (mongoose.connection.readyState === 1) {
-    console.log('Using existing MongoDB connection');
+    console.log('✓ Using existing MongoDB connection');
     return mongoose.connection;
   }
 
   // If already connecting, return existing promise
   if (connectionPromise) {
-    console.log('Returning existing connection promise');
+    console.log('✓ Returning existing connection promise');
     return connectionPromise;
   }
 
   // Create new connection promise
   connectionPromise = (async () => {
     try {
-      // Close any stale connections
       if (mongoose.connection.readyState !== 0 && mongoose.connection.readyState !== 1) {
         console.log('Closing stale connection');
         await mongoose.disconnect();
       }
 
-      console.log('Connecting to MongoDB...');
+      console.log('🔄 Connecting to MongoDB...');
+      
+      // CLEAN - No deprecated options
       const conn = await mongoose.connect(process.env.MONGO_URI, {
-        useNewUrlParser: true,
-        useUnifiedTopology: true,
-        serverSelectionTimeoutMS: 5000,
+        serverSelectionTimeoutMS: 8000,
         socketTimeoutMS: 45000,
-        connectTimeoutMS: 10000,
-        maxPoolSize: 10,
+        connectTimeoutMS: 15000,
+        maxPoolSize: 5,
         minPoolSize: 0,
         retryWrites: true,
+        family: 4
       });
       
-      console.log('MongoDB Connected Successfully');
+      console.log('✓ MongoDB Connected Successfully');
       return conn;
     } catch (error) {
-      console.error('MongoDB Connection Error:', error.message);
-      connectionPromise = null; // Reset promise on error
+      console.error('❌ MongoDB Connection Error:', {
+        message: error.message,
+        code: error.code,
+        name: error.name
+      });
+      connectionPromise = null;
       throw error;
     }
   })();
@@ -120,7 +124,7 @@ app.post('/api/auth/register', ensureDB, async (req, res) => {
       });
     }
 
-    // Hash password with 10 rounds (standard)
+    // Hash password
     const hashedPassword = await bcrypt.hash(password, 10);
 
     const newUser = new User({ name, email, password: hashedPassword });
