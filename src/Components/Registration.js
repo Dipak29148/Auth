@@ -44,11 +44,11 @@ const Registration = () => {
   
       if (response.data.success) {
         console.log('Registration successful:', response.data);
-        localStorage.setItem('token', response.data.token);
-        localStorage.setItem('user', JSON.stringify(response.data.user));
-        addToast('Registration successful!', 'success');
+        // DO NOT store token - user must login after registration
+        // This ensures proper UX flow: register -> login -> dashboard
+        addToast('Registration successful! Please login to continue.', 'success');
         setFormData({ name: '', email: '', password: '' });
-        // Redirect to login
+        // Redirect to login page
         setTimeout(() => {
           window.location.href = '/login';
         }, 1500);

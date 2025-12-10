@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
 import { BrowserRouter as Router, Route, Routes } from 'react-router-dom';
 import Main from './Components/Main';
 import About from './Components/About';
@@ -20,18 +20,35 @@ import './Components/styles/Toast.css';
 const App = () => {
   const [isLoggedIn, setIsLoggedIn] = useState(false);
 
+  // Sync auth state with stored token so navbar reflects real status on refresh
+  useEffect(() => {
+    const token = localStorage.getItem('authToken');
+    setIsLoggedIn(!!token);
+  }, []);
+
+  const handleAuthChange = useCallback((status) => {
+    setIsLoggedIn(status);
+  }, []);
+
+  const handleLogout = () => {
+    localStorage.removeItem('authToken');
+    localStorage.removeItem('user');
+    setIsLoggedIn(false);
+    window.location.href = '/login';
+  };
+
   return (
     <ToastProvider>
     <Router>
-      <Navbar isLoggedIn={isLoggedIn} />
+      <Navbar isLoggedIn={isLoggedIn} onLogout={handleLogout} />
       <div className="content-wrapper"> {/* Optional: for content layout */}
         <Routes>
           <Route path="/" element={<Main />} />
           <Route path="/about" element={<About />} />
-          <Route path="/dashboard" element={<Dashboard />} />
+          <Route path="/dashboard" element={<Dashboard onAuthChange={handleAuthChange} />} />
           <Route path="/registration" element={<Registration />} />
           <Route path="/contact" element={<Contact />} />
-          <Route path="/login" element={<Login onLogin={setIsLoggedIn} />} />
+          <Route path="/login" element={<Login onLogin={handleAuthChange} />} />
           <Route path="/product/1" element={<ProductDetail1 />} />
           <Route path="/product/2" element={<ProductDetail2 />} />
           <Route path="/product/3" element={<ProductDetail3 />} />

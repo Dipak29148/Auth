@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import axios from 'axios';
+import api from '../api';
 import { useToast } from '../context/ToastContext';
 
 const Contact = () => {
@@ -23,26 +23,27 @@ const Contact = () => {
     });
   };
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
     setSubmitStatus({ submitting: true, success: false, error: null });
-    
-    axios.post('/api/contact/send-message', formData)
-      .then((response) => {
-        console.log('Response:', response);
-        setFormData({
-          name: '',
-          email: '',
-          message: '',
-        });
+
+    try {
+      const response = await api.post('/api/contact/send-message', formData, {
+        timeout: 15000,
+      });
+
+      if (response?.data?.success) {
+        setFormData({ name: '', email: '', message: '' });
         setSubmitStatus({ submitting: false, success: true, error: null });
         addToast('Your message has been sent successfully!', 'success');
-      })
-      .catch((error) => {
-        console.error('There was an error submitting the form!', error);
-        setSubmitStatus({ submitting: false, success: false, error: null });
-        addToast('Failed to send message. Please try again.', 'error');
-      });
+      } else {
+        throw new Error(response?.data?.message || 'Failed to send message');
+      }
+    } catch (error) {
+      console.error('There was an error submitting the form!', error);
+      setSubmitStatus({ submitting: false, success: false, error: error.message });
+      addToast('Failed to send message. Please try again.', 'error');
+    }
   };
 
   return (

@@ -17,15 +17,21 @@ const Login = ({ onLogin }) => {
       const response = await api.post('/api/auth/login', { email, password }, { withCredentials: true });
       
       if (response.data.token) {
-        // Store the token in local storage
+        // Store the token and user data in local storage
         localStorage.setItem('authToken', response.data.token);
+        if (response.data.user) {
+          localStorage.setItem('user', JSON.stringify(response.data.user));
+        }
         onLogin(true);
         setError(null);
         addToast('Login successful!', 'success');
-        window.location.href = '/dashboard';
+        // Give toast time to show before redirect
+        setTimeout(() => {
+          window.location.href = '/dashboard';
+        }, 1000);
       } else {
         setError(null);
-        addToast('Login failed!', 'error');
+        addToast('Login failed! Please try again.', 'error');
       }
     } catch (error) {
       console.error('Login error:', error.response?.data || error.message);

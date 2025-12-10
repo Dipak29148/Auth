@@ -4,7 +4,7 @@ import './Dashboard.css';
 import api from '../api';
 import { useToast } from '../context/ToastContext';
 
-const Dashboard = () => {
+const Dashboard = ({ onAuthChange }) => {
   const [user, setUser] = useState({ name: '', email: '' });
   const [editMode, setEditMode] = useState(false);
   const [newName, setNewName] = useState('');
@@ -33,9 +33,13 @@ const Dashboard = () => {
         });
 
         if (response.data) {
-          setUser(response.data);
-          setNewName(response.data.name);
-          setNewEmail(response.data.email);
+          const userData = response.data.user || response.data;
+          setUser(userData);
+          setNewName(userData.name);
+          setNewEmail(userData.email);
+          // Store user data for navbar initials
+          localStorage.setItem('user', JSON.stringify(userData));
+          onAuthChange?.(true);
         }
       } catch (error) {
         console.error('Failed to fetch user details:', error);
@@ -44,7 +48,7 @@ const Dashboard = () => {
     };
 
     fetchUser();
-  }, [addToast, isLoggingOut]);
+  }, [addToast, isLoggingOut, onAuthChange]);
 
   const handleLogout = () => {
     // Prevent multiple logout attempts
@@ -52,6 +56,7 @@ const Dashboard = () => {
     
     setIsLoggingOut(true);
     localStorage.removeItem('authToken');
+    onAuthChange?.(false);
     addToast('Logged out successfully!', 'success');
     
     // Increase delay to 3 seconds to ensure toast is visible
